@@ -19,15 +19,11 @@ SEAPATH_PARALLEL_MAKE='8'
 # If not defined, no CPU will be reserved.
 SEAPATH_RT_CORES='2-N'
 
-# Hashed password to access Grub shell if security is enabled.
-# The password has to be stored hashed in pbkdf2 format.
-# To generate the hashed from the plain password, the following command can be
-# used:
-# grub-mkpasswd-pbkdf2 -c 65536 -s 256 -l 64
-SEAPATH_GRUB_PASSWORD=''
+# systemd-boot boot timeout in seconds (default 3)
+SEAPATH_BOOT_TIMEOUT='3'
 
-# Time in seconds grub waiting before boot SEAPATH.
-SEAPATH_GRUB_TIMEOUT='0'
+# Number of boot tries before fallback to previous slot (default 3)
+SEAPATH_BOOT_TRIES='3'
 
 # Set to true to disable IPv6.
 SEAPATH_DISABLE_IPV6='false'
