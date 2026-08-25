@@ -16,6 +16,11 @@ on:
         description: >-
           Value of the GITHUB_SHA variable for the workflow on the
           origin repository.
+      runner_label:
+        type: string
+        required: false
+        default: 'runner-sfl-seapath'
+        description: Label of the self-hosted runner that executes the builds.
 
 # This is absolutely crazy but Action Variables are not accessible to runs
 # triggered by PRs from forks repository (https://github.com/orgs/community/discussions/44322).
@@ -28,7 +33,7 @@ env:
 
 jobs:
   build:
-    runs-on: ["self-hosted", "runner-sfl-seapath"]
+    runs-on: ["self-hosted", "${{ inputs.runner_label }}"]
     # This job may check out potentially unsafe user code from Pull Requests.
     # Giving it only the necessary permissions mitigates potential token misuse
     # introduced in user code.
