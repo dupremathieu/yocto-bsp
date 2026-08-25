@@ -21,7 +21,9 @@ env:
 jobs:
   build-and-upload:
     name: Build and upload Artifacts to S3
-    runs-on: ["self-hosted", "runner-sfl-seapath"]
+    # Release builds are trusted: they can run on the dedicated trusted
+    # runner, which never executes untrusted pull request code.
+    runs-on: ["self-hosted", "runner-sfl-seapath-2"]
     env:
       WORKSPACE: workspace-bitbake
     defaults:

@@ -4,6 +4,15 @@
 
 In order to centralize the CI on this repository, the CI on meta-seapath is redirected here via `workflow_dispatch` actions.
 
+## Runner pools
+
+Self-hosted runners are selected by label:
+
+- `runner-sfl-seapath`: **untrusted** pool. Runs pull request builds (`pr.yml`), which may execute code from external forks. It must never receive secrets or privileged tokens beyond the minimum documented per workflow.
+- `runner-sfl-seapath-2`: **trusted** pool. Runs push (`push.yml`) and release (`build-and-s3-upload.yml`) builds only. It must never execute untrusted pull request code.
+
+Keep this separation intact when adding workflows or runners.
+
 ## Diagram
 
 The red stroked boxes are the workflows that can potentially run in the context of an external contributor's PR. Those workflows are ran unprivileged: no secrets, read-only token (see https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflows-in-forked-repositories).
