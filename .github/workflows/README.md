@@ -8,10 +8,14 @@ In order to centralize the CI on this repository, the CI on meta-seapath is redi
 
 Self-hosted runners are selected by label:
 
-- `runner-sfl-seapath`: **untrusted** pool. Runs pull request builds (`pr.yml`), which may execute code from external forks. It must never receive secrets or privileged tokens beyond the minimum documented per workflow.
-- `runner-sfl-seapath-2`: **trusted** pool. Runs push (`push.yml`) and release (`build-and-s3-upload.yml`) builds only. It must never execute untrusted pull request code.
+- `runner-sfl-seapath`: legacy pool.
+- `runner-sfl-seapath-2`: pool provisioned by the `ci-runner-installer` repository (Fedora CoreOS, podman, persistent Yocto cache).
 
-Keep this separation intact when adding workflows or runners.
+Pull request builds are dispatched across **both** pools (round-robin per image flavor, see `_build.yml`) so they build in parallel. Both pools therefore execute potentially unsafe fork code; this is an accepted tradeoff for CI throughput. In particular, untrusted PR code running on `runner-sfl-seapath-2` can tamper with its persistent Yocto cache and plant persistence on the machine: treat both pools as exposed, never grant tokens beyond the minimum documented per workflow, and keep the S3 release secrets confined to `build-and-s3-upload.yml`.
+
+Each label must be registered by exactly one runner instance: `_build.yml` assumes it to serialize the flavor builds per machine.
+
+Push and release builds (`push.yml`, `build-and-s3-upload.yml`) run exclusively on `runner-sfl-seapath-2`. Keep this routing intact when adding workflows or runners.
 
 ## Diagram
 

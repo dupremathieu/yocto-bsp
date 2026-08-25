@@ -53,9 +53,9 @@ jobs:
     with:
       origin_repository: "${{ inputs.origin_repository || github.repository }}"
       origin_sha: "${{ inputs.origin_sha || github.sha }}"
-      # PR builds may check out untrusted fork code: keep them on the
-      # untrusted runner pool, never on the dedicated trusted one.
-      runner_label: 'runner-sfl-seapath'
+      # PR builds may check out untrusted fork code: dispatch them across
+      # both runner pools so the four image flavors build in parallel.
+      runner_labels: 'runner-sfl-seapath,runner-sfl-seapath-2'
 
   process-results:
     if: "${{ !cancelled() }}"
