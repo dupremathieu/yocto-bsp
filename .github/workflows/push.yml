@@ -47,6 +47,6 @@ jobs:
       origin_repository: "${{ inputs.origin_repository || github.repository }}"
       origin_sha: "${{ inputs.origin_sha || github.sha }}"
       # Pushes and delegated dispatches are trusted: they can run on the
-      # dedicated trusted runner, which never executes untrusted pull
-      # request code.
-      runner_label: 'runner-sfl-seapath-2'
+      # dedicated release runner, which also serves PR builds but is the
+      # only pool allowed to run push and release builds.
+      runner_labels: 'runner-sfl-seapath-2'
