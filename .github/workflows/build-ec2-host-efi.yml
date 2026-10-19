@@ -1,10 +1,6 @@
 name: Yocto EC2 — host_efi
 on:
   workflow_dispatch:
-  # Initial fork evaluation; remove this push trigger after the run starts.
-  push:
-    branches: [codex/yocto-ec2]
-    paths: [.github/workflows/build-ec2-host-efi.yml]
 permissions:
   contents: read
 jobs:
