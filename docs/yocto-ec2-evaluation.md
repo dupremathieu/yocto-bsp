@@ -66,3 +66,16 @@ build estimate. The controller and S3 cache remain after the EC2 runner exits.
 Sources: [EC2 pricing](https://aws.amazon.com/ec2/pricing/on-demand/),
 [EBS pricing](https://aws.amazon.com/ebs/pricing/),
 [IPv4 pricing](https://aws.amazon.com/vpc/pricing/).
+
+## Initial run — 2026-10-19
+
+[host_efi evaluation run](https://github.com/dupremathieu/yocto-bsp/actions/runs/39306923690)
+started from commit `647e0555f92e5806cef5c618afdb870445743bb5`. Instance
+`i-0a259ef8f580da0fd` launched at 18:57:49 UTC; the job started at 18:58:54 UTC.
+Bootstrap, checkout and runner configuration checks passed; source sync/build
+is in progress. No completed-build result, cache-hit rate or measured cost is
+claimed yet. The initial S3 cache bucket was empty at launch.
+
+The four image workflows are manual-only after this launch. GitHub Actions had
+to be enabled on the fork before it would process push events. The initial
+temporary branch trigger has been removed.
