@@ -72,10 +72,28 @@ Sources: [EC2 pricing](https://aws.amazon.com/ec2/pricing/on-demand/),
 [host_efi evaluation run](https://github.com/dupremathieu/yocto-bsp/actions/runs/39306923690)
 started from commit `647e0555f92e5806cef5c618afdb870445743bb5`. Instance
 `i-0a259ef8f580da0fd` launched at 18:57:49 UTC; the job started at 18:58:54 UTC.
-Bootstrap, checkout and runner configuration checks passed; source sync/build
-is in progress. No completed-build result, cache-hit rate or measured cost is
-claimed yet. The initial S3 cache bucket was empty at launch.
+Bootstrap, checkout and runner configuration checks passed. The run was then
+cancelled to prepare the local source/cache baseline first; the instance is
+terminated and its root volume was removed. No completed-build result,
+cache-hit rate or measured cost is claimed. The initial S3 cache bucket was
+empty at launch.
 
 The four image workflows are manual-only after this launch. GitHub Actions had
 to be enabled on the fork before it would process push events. The initial
 temporary branch trigger has been removed.
+
+## Local source alignment — 2026-10-19
+
+The local workspace now selects `wrynose.xml` from the official
+`https://github.com/seapath/repo-manifest.git`, branch `main`, commit
+`2ee72789c96e43f0cb534c1e61913ac049b68804`. Its Git blob
+`76d6b6f81e23b8a27749d3afea0055f66475df43` was verified against GitHub.
+All 13 repositories under `sources/` match the manifest's resolved revisions;
+six changed. Existing local patches in meta-cgl and meta-secure-core were
+restored identically after synchronization. Existing source branches remain
+available; working trees are detached at the manifest revisions.
+
+The BSP's CI branch, configuration, keys and local caches were preserved. No
+`cqfd -b host_efi` was launched. Before/after revision manifests and patch backups
+are under `.repo/local-backups/2026-10-19-before-wrynose-sync/` locally. Await the
+user's instruction before building or transferring any local cache again.
