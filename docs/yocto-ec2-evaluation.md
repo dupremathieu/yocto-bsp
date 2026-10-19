@@ -17,7 +17,7 @@ remove it after launch. No release files are uploaded to the production R2 bucke
 The reference is a build with populated caches, not an incremental rebuild using
 an existing `tmp/` directory or BitBake task stamps:
 
-1. Sync the fork's `wrynose-ec2.xml` at tag `yocto-ec2-2026-10-19-v1`.
+1. Sync the fork's `wrynose-ec2.xml` at tag `yocto-ec2-2026-10-19-v2`.
    Every project, including the BSP, is pinned to a full commit SHA. The workflow
    driver is loaded from a separate checkout; it does not replace the pinned BSP.
    Record the resolved manifest and meta-seapath revision in the results.
@@ -126,3 +126,21 @@ the AWS reference, and cache storage deletion after results recovery. Local
 failure never authorizes using that failed attempt as a successful cache seed.
 After the evaluation, set `enable_cache_storage=false` and review/apply Terraform
 to delete only the five cache resources; retain local caches and result files.
+
+## Second baseline: omit setup-ovs for the compilation evaluation
+
+The first retry, container `86563786a1f1`, also failed: fetching the pinned
+python3-setup-ovs source failed. The repository and commit were verified to exist
+and a later CQFD network probe succeeded. The user authorized omitting this
+component for the cost evaluation rather than investigating the fetch further.
+
+The `host_efi` evaluation image now omits `python3-setup-ovs` and
+`system-config-ovs`, whose systemd service requires `/usr/bin/setup_ovs`.
+Its otherwise unused runtime dependency also pulled the helper into BitBake's
+recipe graph, so an evaluation-only system-config append removes that dependency.
+Open vSwitch, libvirt and QEMU remain in the workload. This image cannot validate
+normal SEAPATH OVS boot configuration; results concern compilation cost only.
+The other image definitions are unchanged and still explicitly install the helper.
+
+Tag `yocto-ec2-2026-10-19-v2` pins the revised evaluation baseline. The v1 tag is
+retained unchanged. A new successful full build is required before reusing caches.

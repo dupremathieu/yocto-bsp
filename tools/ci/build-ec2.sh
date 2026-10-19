@@ -65,7 +65,7 @@ sync_sources() {
             "$CI_RESULTS/local-seapath.conf" | sha256sum -c -
     fi
     repo init -u "${CI_MANIFEST_URL:-https://github.com/dupremathieu/repo-manifest.git}" \
-        -b "${CI_MANIFEST_REF:-refs/tags/yocto-ec2-2026-10-19-v1}" \
+        -b "${CI_MANIFEST_REF:-refs/tags/yocto-ec2-2026-10-19-v2}" \
         -m "${CI_MANIFEST_FILE:-wrynose-ec2.xml}"
     if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
         mkdir -p .repo/local_manifests
