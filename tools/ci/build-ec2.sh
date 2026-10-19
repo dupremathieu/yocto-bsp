@@ -61,14 +61,22 @@ sync_sources() {
 }
 
 restore_cache() {
-    local prefix=seed marker="caches/$CI_FLAVOR/latest.json" existing
+    local prefix marker="caches/$CI_FLAVOR/latest.json" existing
     existing=$(aws s3api list-objects-v2 --bucket "$CI_CACHE_BUCKET" --prefix "$marker" \
         --query 'Contents[].Key' --output text)
     if [ -n "$existing" ] && [ "$existing" != None ]; then
         aws s3 cp "s3://$CI_CACHE_BUCKET/$marker" "$CI_RESULTS/cache-source.json" --no-progress
-        prefix=$(jq -er .prefix "$CI_RESULTS/cache-source.json")
+        prefix=$(jq -er --arg flavor "$CI_FLAVOR" \
+            'select(.reference_build_succeeded == true and .flavor == $flavor) | .prefix' \
+            "$CI_RESULTS/cache-source.json")
+        case "$prefix" in
+            "caches/$CI_FLAVOR/"*) ;;
+            *) echo 'Invalid published cache prefix' >&2; return 1 ;;
+        esac
     else
-        printf '{"prefix":"seed","kind":"local-development-cache"}\n' > "$CI_RESULTS/cache-source.json"
+        printf '{"kind":"empty-cache-first-aws-build"}\n' > "$CI_RESULTS/cache-source.json"
+        echo 'No verified AWS cache exists; populate it with a fresh build.'
+        return 0
     fi
     aws s3 cp "s3://$CI_CACHE_BUCKET/$prefix/downloads.tar" - --no-progress \
         | tar -xf - -C "$cache/downloads" --no-same-owner

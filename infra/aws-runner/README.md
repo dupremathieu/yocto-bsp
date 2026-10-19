@@ -47,11 +47,11 @@ gh variable set YOCTO_EC2_CACHE_BUCKET --repo dupremathieu/yocto-bsp \
   --body "$(terraform output -raw cache_bucket)"
 ```
 
-Before the initial run, upload populated download and sstate cache archives as
-`seed/downloads.tar` and `seed/sstate.tar`. Stream `tar -cf - -C <cache-directory> .`
-into `aws s3 cp - s3://<cache-bucket>/seed/<archive>.tar`; use `--expected-size`
-for large streams. Do not upload a cache while a local build is writing to it.
-The workflow fails if no seed or previous successful cache is available.
+The first run starts with empty caches and populates them on AWS. The workflow
+then removes the ephemeral build directory and performs its reference build with
+the resulting download and sstate caches. Subsequent runs restore only a cache
+published by a successful AWS reference run. Do not seed this deployment from
+the development machine's invalid `build/` caches.
 
 Lambda assets are pinned to module v7.11.0 and verified against release hashes.
 The module and helpers originate from the tested virtual-cluster deployment.

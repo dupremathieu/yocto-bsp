@@ -20,11 +20,12 @@ an existing `tmp/` directory or BitBake task stamps:
 1. Sync `wrynose.xml`, then fetch the exact workflow commit from the Yocto fork.
    Record the resolved manifest and meta-seapath revision in the results.
 2. Restore downloads and sstate from the last successful per-image S3 cache.
-   On the first run, restore the development machine's populated seed caches
-   (about 20 GiB downloads and 19 GiB sstate at preparation time).
+   On the first run, start empty and populate the cache on AWS. The development
+   machine's caches were identified as invalid by the user; the initial uploaded
+   copies were deleted, and there is no local-seed fallback in the workflow.
 3. Build the selected image once to complete/populate the caches for these exact
-   sources. This phase is **not described as a cold build**: the seed may provide
-   many cache hits. Its duration is recorded separately.
+   sources. The initial run is a cold build; subsequent runs may restore a
+   previously verified AWS cache. Its duration is recorded separately.
 4. Remove only the ephemeral workspace's `build/` directory. Keep downloads and
    sstate in separate mounts. Rebuild the same image and time this **reference**.
 5. Record image sizes/digests, SBOM, stage times, cache sizes, `/usr/bin/time`
