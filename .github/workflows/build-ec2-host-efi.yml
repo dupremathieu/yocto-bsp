@@ -1,7 +1,7 @@
 name: Yocto EC2 — host_efi
 on:
   workflow_dispatch:
-  # Temporary branch-only trigger: dispatch requires the workflow on the default branch.
+  # Initial fork evaluation; remove this push trigger after the run starts.
   push:
     branches: [codex/yocto-ec2]
     paths: [.github/workflows/build-ec2-host-efi.yml]
