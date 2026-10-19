@@ -17,5 +17,5 @@ output "github_app_ssm_parameters" {
 }
 
 output "cache_bucket" {
-  value = aws_s3_bucket.yocto_cache.id
+  value = var.enable_cache_storage ? aws_s3_bucket.yocto_cache[0].id : null
 }

@@ -1,10 +1,12 @@
 resource "aws_s3_bucket" "yocto_cache" {
+  count         = var.enable_cache_storage ? 1 : 0
   bucket_prefix = "${var.prefix}-cache-"
   force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "yocto_cache" {
-  bucket                  = aws_s3_bucket.yocto_cache.id
+  count                   = var.enable_cache_storage ? 1 : 0
+  bucket                  = aws_s3_bucket.yocto_cache[0].id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -12,7 +14,8 @@ resource "aws_s3_bucket_public_access_block" "yocto_cache" {
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "yocto_cache" {
-  bucket = aws_s3_bucket.yocto_cache.id
+  count  = var.enable_cache_storage ? 1 : 0
+  bucket = aws_s3_bucket.yocto_cache[0].id
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
@@ -21,7 +24,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "yocto_cache" {
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "yocto_cache" {
-  bucket = aws_s3_bucket.yocto_cache.id
+  count  = var.enable_cache_storage ? 1 : 0
+  bucket = aws_s3_bucket.yocto_cache[0].id
   rule {
     id     = "evaluation-cache-expiry"
     status = "Enabled"
@@ -36,21 +40,47 @@ resource "aws_s3_bucket_lifecycle_configuration" "yocto_cache" {
 }
 
 resource "aws_iam_role_policy" "yocto_cache" {
-  name = "yocto-cache"
-  role = module.github_runner.runners.role_runner[0].name
+  count = var.enable_cache_storage ? 1 : 0
+  name  = "yocto-cache"
+  role  = module.github_runner.runners.role_runner[0].name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect   = "Allow"
         Action   = ["s3:ListBucket", "s3:ListBucketMultipartUploads"]
-        Resource = aws_s3_bucket.yocto_cache.arn
+        Resource = aws_s3_bucket.yocto_cache[0].arn
       },
       {
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:PutObject", "s3:AbortMultipartUpload"]
-        Resource = "${aws_s3_bucket.yocto_cache.arn}/*"
+        Resource = "${aws_s3_bucket.yocto_cache[0].arn}/*"
       }
     ]
   })
+}
+
+moved {
+  from = aws_s3_bucket.yocto_cache
+  to   = aws_s3_bucket.yocto_cache[0]
+}
+
+moved {
+  from = aws_s3_bucket_public_access_block.yocto_cache
+  to   = aws_s3_bucket_public_access_block.yocto_cache[0]
+}
+
+moved {
+  from = aws_s3_bucket_server_side_encryption_configuration.yocto_cache
+  to   = aws_s3_bucket_server_side_encryption_configuration.yocto_cache[0]
+}
+
+moved {
+  from = aws_s3_bucket_lifecycle_configuration.yocto_cache
+  to   = aws_s3_bucket_lifecycle_configuration.yocto_cache[0]
+}
+
+moved {
+  from = aws_iam_role_policy.yocto_cache
+  to   = aws_iam_role_policy.yocto_cache[0]
 }

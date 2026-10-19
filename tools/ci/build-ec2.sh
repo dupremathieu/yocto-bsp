@@ -48,35 +48,70 @@ timed() {
 }
 
 sync_sources() {
-    repo init -u https://github.com/seapath/repo-manifest.git -b main -m wrynose.xml
+    if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
+        [[ "$CI_LOCAL_CACHE_PREFIX" =~ ^local-host-efi-[a-f0-9]+$ ]]
+        [ "$CI_FLAVOR" = host_efi ]
+        aws s3 cp "s3://$CI_CACHE_BUCKET/$CI_LOCAL_CACHE_PREFIX/complete.json" \
+            "$CI_RESULTS/local-cache-complete.json" --no-progress
+        jq -e '.local_build_succeeded == true and .container_exit_code == 0 and .flavor == "host_efi"' \
+            "$CI_RESULTS/local-cache-complete.json" >/dev/null
+        aws s3 cp "s3://$CI_CACHE_BUCKET/$CI_LOCAL_CACHE_PREFIX/source-lock.xml" \
+            "$CI_RESULTS/source-lock.xml" --no-progress
+        aws s3 cp "s3://$CI_CACHE_BUCKET/$CI_LOCAL_CACHE_PREFIX/seapath.conf" \
+            "$CI_RESULTS/local-seapath.conf" --no-progress
+        printf '%s  %s\n' "$(jq -r .source_lock_sha256 "$CI_RESULTS/local-cache-complete.json")" \
+            "$CI_RESULTS/source-lock.xml" | sha256sum -c -
+        printf '%s  %s\n' "$(jq -r .config_sha256 "$CI_RESULTS/local-cache-complete.json")" \
+            "$CI_RESULTS/local-seapath.conf" | sha256sum -c -
+    fi
+    repo init -u "${CI_MANIFEST_URL:-https://github.com/dupremathieu/repo-manifest.git}" \
+        -b "${CI_MANIFEST_REF:-refs/tags/yocto-ec2-2026-10-19-v1}" \
+        -m "${CI_MANIFEST_FILE:-wrynose-ec2.xml}"
+    if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
+        mkdir -p .repo/local_manifests
+        cp "$CI_RESULTS/source-lock.xml" .repo/local_manifests/evaluation-lock.xml
+    fi
     repo sync -j4 --fail-fast
-    # The root project must use the fork revision that contains this workflow.
-    # Fetching the fork URL explicitly also works for commits absent upstream.
-    git fetch "$CI_ORIGIN_URL" "$CI_ORIGIN_SHA"
-    git checkout --detach FETCH_HEAD
-    test "$(git rev-parse HEAD)" = "$CI_ORIGIN_SHA"
+    # Build the pinned BSP; the workflow driver lives in the separate ci checkout.
+    printf '%s\n' "$CI_ORIGIN_SHA" > "$CI_RESULTS/workflow.sha"
     repo manifest -r -o "$CI_RESULTS/manifest.xml"
+    if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
+        python3 - "$CI_RESULTS/source-lock.xml" "$CI_RESULTS/manifest.xml" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+locked = {p.get('name'): p.get('revision') for p in ET.parse(sys.argv[1]).getroot().findall('extend-project')}
+actual = {p.get('name'): p.get('revision') for p in ET.parse(sys.argv[2]).getroot().findall('project')
+          if p.get('path', '') == '.' or p.get('path', '').startswith('sources/')}
+if actual != locked:
+    raise SystemExit('Source revisions differ from the successful local build')
+PY
+    fi
     git rev-parse HEAD > "$CI_RESULTS/yocto-bsp.sha"
     git -C sources/meta-seapath rev-parse HEAD > "$CI_RESULTS/meta-seapath.sha"
 }
 
 restore_cache() {
     local prefix marker="caches/$CI_FLAVOR/latest.json" existing
-    existing=$(aws s3api list-objects-v2 --bucket "$CI_CACHE_BUCKET" --prefix "$marker" \
-        --query 'Contents[].Key' --output text)
-    if [ -n "$existing" ] && [ "$existing" != None ]; then
-        aws s3 cp "s3://$CI_CACHE_BUCKET/$marker" "$CI_RESULTS/cache-source.json" --no-progress
-        prefix=$(jq -er --arg flavor "$CI_FLAVOR" \
-            'select(.reference_build_succeeded == true and .flavor == $flavor) | .prefix' \
-            "$CI_RESULTS/cache-source.json")
-        case "$prefix" in
-            "caches/$CI_FLAVOR/"*) ;;
-            *) echo 'Invalid published cache prefix' >&2; return 1 ;;
-        esac
+    if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
+        prefix=$CI_LOCAL_CACHE_PREFIX
+        cp "$CI_RESULTS/local-cache-complete.json" "$CI_RESULTS/cache-source.json"
     else
-        printf '{"kind":"empty-cache-first-aws-build"}\n' > "$CI_RESULTS/cache-source.json"
-        echo 'No verified AWS cache exists; populate it with a fresh build.'
-        return 0
+        existing=$(aws s3api list-objects-v2 --bucket "$CI_CACHE_BUCKET" --prefix "$marker" \
+            --query 'Contents[].Key' --output text)
+        if [ -n "$existing" ] && [ "$existing" != None ]; then
+            aws s3 cp "s3://$CI_CACHE_BUCKET/$marker" "$CI_RESULTS/cache-source.json" --no-progress
+            prefix=$(jq -er --arg flavor "$CI_FLAVOR" \
+                'select(.reference_build_succeeded == true and .flavor == $flavor) | .prefix' \
+                "$CI_RESULTS/cache-source.json")
+            case "$prefix" in
+                "caches/$CI_FLAVOR/"*) ;;
+                *) echo 'Invalid published cache prefix' >&2; return 1 ;;
+            esac
+        else
+            printf '{"kind":"empty-cache-first-aws-build"}\n' > "$CI_RESULTS/cache-source.json"
+            echo 'No verified AWS cache exists; populate it with a fresh build.'
+            return 0
+        fi
     fi
     aws s3 cp "s3://$CI_CACHE_BUCKET/$prefix/downloads.tar" - --no-progress \
         | tar -xf - -C "$cache/downloads" --no-same-owner
@@ -93,7 +128,7 @@ save_cache() {
         "s3://$CI_CACHE_BUCKET/$prefix/downloads.tar" --expected-size 322122547200 --no-progress
     tar -cf - -C "$cache/sstate" . | aws s3 cp - \
         "s3://$CI_CACHE_BUCKET/$prefix/sstate.tar" --expected-size 322122547200 --no-progress
-    jq -n --arg prefix "$prefix" --arg flavor "$CI_FLAVOR" --arg sha "$CI_ORIGIN_SHA" \
+    jq -n --arg prefix "$prefix" --arg flavor "$CI_FLAVOR" --arg sha "$(git rev-parse HEAD)" \
         '{prefix:$prefix,flavor:$flavor,sha:$sha,reference_build_succeeded:true}' \
         > "$CI_RESULTS/cache-published.json"
     # Publish the pointer only after both archives and the reference build succeed.
@@ -114,14 +149,19 @@ export CQFD_EXTRA_RUN_ARGS="-v $cache/downloads:/mnt/dl -e DL_DIR=/mnt/dl -v $ca
 timed container-init cqfd init
 mkdir -p keys
 touch keys/ansible_public_ssh_key.pub
-cp seapath.conf.sample seapath.conf
+if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
+    cp "$CI_RESULTS/local-seapath.conf" seapath.conf
+else
+    cp seapath.conf.sample seapath.conf
+fi
 cp seapath.conf "$CI_RESULTS/seapath.conf.txt"
 
 for flavor in "${flavors[@]}"; do
-    timed "$flavor-populate" /usr/bin/time -v -o "$CI_RESULTS/$flavor-populate-resources.txt" cqfd -b "$flavor"
-    # A reference build must consume sstate, not just reuse existing task stamps.
-    # This path exists only in the new CI workspace checked above.
-    timed clean-build cqfd run 'rm -rf build'
+    if [ -z "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
+        timed "$flavor-populate" /usr/bin/time -v -o "$CI_RESULTS/$flavor-populate-resources.txt" cqfd -b "$flavor"
+        # Consume sstate, not existing task stamps, for the reference build.
+        timed clean-build cqfd run 'rm -rf build'
+    fi
     timed "$flavor-reference" /usr/bin/time -v -o "$CI_RESULTS/$flavor-reference-resources.txt" cqfd -b "$flavor"
     awk '/Sstate summary:|Tasks Summary:/' "$CI_RESULTS/$flavor-reference.log" \
         > "$CI_RESULTS/$flavor-reference-cache-summary.txt"
@@ -132,4 +172,9 @@ for flavor in "${flavors[@]}"; do
     find build/tmp/deploy/images -type f -name '*.qcow2' -exec sha256sum {} + \
         > "$CI_RESULTS/$flavor-images.sha256"
 done
-timed cache-publish save_cache
+if [ -z "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
+    timed cache-publish save_cache
+else
+    # This one-off evaluation deletes its S3 cache after results are recovered.
+    du -sh "$cache"/* > "$CI_RESULTS/cache-final-size.txt"
+fi

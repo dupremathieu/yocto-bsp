@@ -60,6 +60,12 @@ remove this deployment later. Secret values remain outside Terraform state.
 
 ## Teardown
 
+For the one-off warm-cache evaluation, remove the cache immediately after results
+recovery with `enable_cache_storage=false`. Review the plan: only the bucket,
+its three S3 settings and the runner cache IAM policy should be destroyed. Keep
+that setting in an ignored auto.tfvars file to avoid recreating storage later.
+This preserves the controller, local caches and the virtual-cluster deployment.
+
 Stop running builds and disable this repository's webhook before `terraform
 destroy`. Check that dynamically launched instances have terminated: Terraform
 does not track them individually. `force_destroy` removes this evaluation's

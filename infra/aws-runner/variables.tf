@@ -4,6 +4,12 @@ variable "aws_profile" {
   default     = "seapath"
 }
 
+variable "enable_cache_storage" {
+  description = "Delete the temporary S3 cache after recovering evaluation results."
+  type        = bool
+  default     = true
+}
+
 variable "aws_region" {
   description = "Region for the initial SEAPATH runner evaluation."
   type        = string

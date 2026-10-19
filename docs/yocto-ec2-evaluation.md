@@ -17,7 +17,9 @@ remove it after launch. No release files are uploaded to the production R2 bucke
 The reference is a build with populated caches, not an incremental rebuild using
 an existing `tmp/` directory or BitBake task stamps:
 
-1. Sync `wrynose.xml`, then fetch the exact workflow commit from the Yocto fork.
+1. Sync the fork's `wrynose-ec2.xml` at tag `yocto-ec2-2026-10-19-v1`.
+   Every project, including the BSP, is pinned to a full commit SHA. The workflow
+   driver is loaded from a separate checkout; it does not replace the pinned BSP.
    Record the resolved manifest and meta-seapath revision in the results.
 2. Restore downloads and sstate from the last successful per-image S3 cache.
    On the first run, start empty and populate the cache on AWS. The development
@@ -97,3 +99,30 @@ The BSP's CI branch, configuration, keys and local caches were preserved. No
 `cqfd -b host_efi` was launched. Before/after revision manifests and patch backups
 are under `.repo/local-backups/2026-10-19-before-wrynose-sync/` locally. Await the
 user's instruction before building or transferring any local cache again.
+
+## Pinned fork and local-cache reference
+
+The subsequent local build in container `67ebe94cdff1` exited with code 1 on
+2026-10-19. LXC source fetching failed. It was an optional build dependency of
+libvirt; the forked meta-seapath disables its unused `lxc` PACKAGECONFIG option.
+BitBake graph generation for host_efi passed and confirmed that lxc is absent
+while libvirt and QEMU remain. A complete image build still has to succeed.
+
+The new evaluation manifest is `wrynose-ec2.xml` in
+`https://github.com/dupremathieu/repo-manifest.git`, selected with
+`-b refs/tags/yocto-ec2-2026-10-19-v1`. Each project uses a full SHA, with the BSP
+and corrected meta-seapath taken from the user's forks. The tag identifies this
+candidate baseline; it is not a claim that the full image build has passed.
+
+After a successful local build, `tools/ci/publish-local-cache.py` checks its
+recorded exit code, image, configuration, source revisions and patch hashes
+before streaming caches to S3. The host workflow's `cache_prefix` input selects
+this verified snapshot. In this mode it restores the source lock and local
+configuration, builds host_efi once from a fresh build directory, and does not
+perform another populate build or upload the caches again.
+
+The user authorized a 15-minute thread follow-up, upload after local success,
+the AWS reference, and cache storage deletion after results recovery. Local
+failure never authorizes using that failed attempt as a successful cache seed.
+After the evaluation, set `enable_cache_storage=false` and review/apply Terraform
+to delete only the five cache resources; retain local caches and result files.

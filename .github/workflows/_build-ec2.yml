@@ -6,6 +6,10 @@ on:
       flavor:
         type: string
         required: true
+      cache_prefix:
+        description: Verified local cache with pinned sources, for the reference build
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -21,6 +25,7 @@ jobs:
     env:
       CI_FLAVOR: ${{ inputs.flavor }}
       CI_CACHE_BUCKET: ${{ vars.YOCTO_EC2_CACHE_BUCKET }}
+      CI_LOCAL_CACHE_PREFIX: ${{ inputs.cache_prefix }}
       CI_ORIGIN_URL: ${{ github.server_url }}/${{ github.repository }}
       CI_ORIGIN_SHA: ${{ github.sha }}
       CI_RESULTS: ${{ github.workspace }}/ec2-results

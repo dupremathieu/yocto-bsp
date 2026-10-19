@@ -1,6 +1,11 @@
 name: Yocto EC2 — host_efi
 on:
   workflow_dispatch:
+    inputs:
+      cache_prefix:
+        description: Verified local cache prefix (empty uses the usual AWS cache)
+        type: string
+        default: ''
 permissions:
   contents: read
 jobs:
@@ -8,3 +13,4 @@ jobs:
     uses: ./.github/workflows/_build-ec2.yml
     with:
       flavor: host_efi
+      cache_prefix: ${{ inputs.cache_prefix || vars.YOCTO_EC2_LOCAL_CACHE_PREFIX || '' }}
