@@ -1,0 +1,10 @@
+name: Yocto EC2 — observer_efi
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    uses: ./.github/workflows/_build-ec2.yml
+    with:
+      flavor: observer_efi

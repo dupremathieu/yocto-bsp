@@ -1,0 +1,89 @@
+name: Yocto EC2 build (internal)
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yocto-ec2-${{ inputs.flavor }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux, x64, seapath-ec2-yocto]
+    timeout-minutes: 540
+    env:
+      CI_FLAVOR: ${{ inputs.flavor }}
+      CI_CACHE_BUCKET: ${{ vars.YOCTO_EC2_CACHE_BUCKET }}
+      CI_ORIGIN_URL: ${{ github.server_url }}/${{ github.repository }}
+      CI_ORIGIN_SHA: ${{ github.sha }}
+      CI_RESULTS: ${{ github.workspace }}/ec2-results
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+          persist-credentials: false
+
+      - name: Record runner configuration
+        run: |
+          mkdir -p "$CI_RESULTS"
+          date -u +%FT%TZ > "$CI_RESULTS/job-start.txt"
+          {
+            nproc
+            free -h
+            df -h
+            docker version
+            cqfd --version
+            repo version
+          } > "$CI_RESULTS/runner.txt" 2>&1
+          token=$(curl -fsS --max-time 5 -X PUT \
+            -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' \
+            http://169.254.169.254/latest/api/token)
+          curl -fsS --max-time 5 -H "X-aws-ec2-metadata-token: $token" \
+            http://169.254.169.254/latest/dynamic/instance-identity/document \
+            > "$CI_RESULTS/ec2-instance.json"
+
+      - name: Sync sources and build
+        run: bash ci/tools/ci/build-ec2.sh
+
+      - name: Record final resources and build status
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          mkdir -p "$CI_RESULTS"
+          date -u +%FT%TZ > "$CI_RESULTS/job-end.txt"
+          printf '%s\n' "$JOB_STATUS" > "$CI_RESULTS/build-status.txt"
+          df -h > "$CI_RESULTS/disk-final.txt"
+          free -h > "$CI_RESULTS/memory-final.txt"
+          {
+            echo "## Yocto EC2 evaluation"
+            echo "Requested image: $CI_FLAVOR; status: $JOB_STATUS"
+            echo '```text'
+            cat "$CI_RESULTS/timings.tsv" 2>/dev/null || true
+            echo '```'
+            echo 'Logs and pinned source revisions are in the evaluation artifact.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs and build metadata
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: yocto-ec2-${{ inputs.flavor }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ec2-results/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload SBOM files
+        uses: actions/upload-artifact@v7
+        with:
+          name: yocto-ec2-sbom-${{ inputs.flavor }}-${{ github.run_id }}
+          path: workspace-bitbake/build/tmp/deploy/images/**/*.rootfs.spdx.json
+          retention-days: 7
+          if-no-files-found: error

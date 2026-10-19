@@ -2,6 +2,10 @@
 
 # CI/CD documentation
 
+The separate manual [EC2 evaluation workflows](../../docs/yocto-ec2-evaluation.md)
+test one image per ephemeral AWS runner and measure a build with populated caches.
+They do not replace the existing build or release workflows.
+
 In order to centralize the CI on this repository, the CI on meta-seapath is redirected here via `workflow_dispatch` actions.
 
 ## Diagram

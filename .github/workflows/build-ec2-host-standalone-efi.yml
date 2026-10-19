@@ -1,0 +1,10 @@
+name: Yocto EC2 — host_standalone_efi
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    uses: ./.github/workflows/_build-ec2.yml
+    with:
+      flavor: host_standalone_efi

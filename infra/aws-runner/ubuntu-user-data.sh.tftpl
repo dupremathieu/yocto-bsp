@@ -1,0 +1,36 @@
+#!/bin/bash
+set -eo pipefail
+set +x
+exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+# OS shutdown terminates the instance, including after bootstrap failure.
+bootstrap_exit() {
+  result=$?
+  if [ "$result" -ne 0 ]; then shutdown -h now; fi
+}
+trap bootstrap_exit EXIT
+systemd-run --unit=seapath-runner-expiry --on-active=10h /sbin/shutdown -h now
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y --no-install-recommends \
+  ca-certificates curl unzip jq git sudo docker.io repo python3 time
+systemctl enable --now docker
+usermod -aG docker ubuntu
+
+curl --fail --location --retry 3 \
+  https://raw.githubusercontent.com/savoirfairelinux/cqfd/v5.10.2/cqfd \
+  -o /tmp/cqfd
+echo '2bc8badc82db7b874d17eaf4f0f07f06ec997ba9092aa0ee94f05ee15cf94494  /tmp/cqfd' | sha256sum -c -
+install -m 755 /tmp/cqfd /usr/local/bin/cqfd
+
+if ! command -v aws >/dev/null; then
+  curl --fail --location --retry 3 https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
+  unzip -q /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install
+fi
+
+${pre_install}
+${install_runner}
+${post_install}
+${start_runner}
