@@ -28,7 +28,9 @@ an existing `tmp/` directory or BitBake task stamps:
 4. Remove only the ephemeral workspace's `build/` directory. Keep downloads and
    sstate in separate mounts. Rebuild the same image and time this **reference**.
 5. Record image sizes/digests, SBOM, stage times, cache sizes, `/usr/bin/time`
-   output, instance identity, memory and disk snapshots. BitBake's log records
+   output, instance identity, and sampled Docker CPU/memory plus host disk and
+   memory usage. Host `/usr/bin/time` does not measure container peak RSS.
+   BitBake's log records
    the sstate summary and task counts, allowing cache hits to be inspected.
 6. Stream the updated caches into an immutable per-run, per-image S3 prefix;
    publish `latest.json` only after the reference and both uploads succeed.

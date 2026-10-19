@@ -21,6 +21,19 @@ fi
 mkdir -p "$workspace" "$cache/downloads" "$cache/sstate" "$CI_RESULTS"
 printf 'stage\tseconds\texit_code\n' > "$CI_RESULTS/timings.tsv"
 
+monitor_resources() {
+    while true; do
+        date -u +%FT%TZ
+        df -B1 "$GITHUB_WORKSPACE"
+        free -b
+        docker stats --no-stream --format '{{json .}}'
+        sleep 30
+    done
+}
+monitor_resources > "$CI_RESULTS/resource-samples.log" 2>&1 &
+monitor_pid=$!
+trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
+
 timed() {
     local label=$1 started result=0
     shift
@@ -102,6 +115,8 @@ for flavor in "${flavors[@]}"; do
     # This path exists only in the new CI workspace checked above.
     timed clean-build cqfd run 'rm -rf build'
     timed "$flavor-reference" /usr/bin/time -v -o "$CI_RESULTS/$flavor-reference-resources.txt" cqfd -b "$flavor"
+    awk '/Sstate summary:|Tasks Summary:/' "$CI_RESULTS/$flavor-reference.log" \
+        > "$CI_RESULTS/$flavor-reference-cache-summary.txt"
     # Record image sizes and digests without uploading large firmware images.
     find build/tmp/deploy/images -type f \
         \( -name '*.qcow2' -o -name '*.wic*' -o -name '*.spdx.json' \) \
