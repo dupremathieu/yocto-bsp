@@ -179,6 +179,9 @@ timed cache-restore restore_cache
 # Caches are restored from S3, used locally, then published back to S3.
 # CQFD splits these arguments on spaces; GitHub's EC2 workspace has no spaces.
 export CQFD_EXTRA_RUN_ARGS="-v $cache/downloads:/mnt/dl -e DL_DIR=/mnt/dl -v $cache/sstate:/mnt/sstate -e SSTATE_DIR=/mnt/sstate -e BB_NUMBER_THREADS=4 -e PARALLEL_MAKE=-j4 -e SEAPATH_PARALLEL_MAKE=4 -e SEAPATH_SECCOMPILE_MANIFEST_SKIP=1"
+# The BSP Dockerfile uses COPY --chmod, which needs BuildKit; Ubuntu's docker.io
+# only enables it with the separate buildx plugin. cpio extracts the SWU to verify.
+timed runner-packages sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-buildx cpio
 timed container-init cqfd init
 mkdir -p keys
 touch keys/ansible_public_ssh_key.pub
