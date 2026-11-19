@@ -182,6 +182,8 @@ export CQFD_EXTRA_RUN_ARGS="-v $cache/downloads:/mnt/dl -e DL_DIR=/mnt/dl -v $ca
 # The BSP Dockerfile uses COPY --chmod, which needs BuildKit; Ubuntu's docker.io
 # only enables it with the separate buildx plugin. cpio extracts the SWU to verify.
 timed runner-packages sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-buildx cpio
+# BitBake needs unprivileged user namespaces, which Ubuntu 24.04's AppArmor blocks by default.
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 timed container-init cqfd init
 mkdir -p keys
 touch keys/ansible_public_ssh_key.pub
