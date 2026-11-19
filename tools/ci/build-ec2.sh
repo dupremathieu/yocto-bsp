@@ -5,7 +5,7 @@ set -euo pipefail
 export AWS_DEFAULT_REGION=eu-west-3
 
 case "${CI_FLAVOR:-host_efi}" in
-    host_efi|host_standalone_efi|guest_efi|observer_efi) flavors=("$CI_FLAVOR") ;;
+    host_efi|host_efi_swu|host_standalone_efi|guest_efi|observer_efi) flavors=("$CI_FLAVOR") ;;
     *) echo 'Unsupported image selection' >&2; exit 1 ;;
 esac
 
@@ -49,11 +49,11 @@ timed() {
 
 sync_sources() {
     if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
-        [[ "$CI_LOCAL_CACHE_PREFIX" =~ ^local-host-efi-[a-f0-9]+$ ]]
-        [ "$CI_FLAVOR" = host_efi ]
+        [[ "$CI_LOCAL_CACHE_PREFIX" =~ ^local-[a-z0-9-]+-[a-f0-9]+$ ]]
         aws s3 cp "s3://$CI_CACHE_BUCKET/$CI_LOCAL_CACHE_PREFIX/complete.json" \
             "$CI_RESULTS/local-cache-complete.json" --no-progress
-        jq -e '.local_build_succeeded == true and .container_exit_code == 0 and .flavor == "host_efi"' \
+        jq -e --arg flavor "$CI_FLAVOR" \
+            '.local_build_succeeded == true and .container_exit_code == 0 and .flavor == $flavor' \
             "$CI_RESULTS/local-cache-complete.json" >/dev/null
         aws s3 cp "s3://$CI_CACHE_BUCKET/$CI_LOCAL_CACHE_PREFIX/source-lock.xml" \
             "$CI_RESULTS/source-lock.xml" --no-progress
@@ -117,7 +117,40 @@ restore_cache() {
         | tar -xf - -C "$cache/downloads" --no-same-owner
     aws s3 cp "s3://$CI_CACHE_BUCKET/$prefix/sstate.tar" - --no-progress \
         | tar -xf - -C "$cache/sstate" --no-same-owner
+    # Same hash-equivalence mappings as the seed build, so its sstate objects are found.
+    if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ] && [ "$(jq -r '.hashserv // false' "$CI_RESULTS/cache-source.json")" = true ]; then
+        mkdir -p build/cache
+        aws s3 cp "s3://$CI_CACHE_BUCKET/$prefix/hashserv.db" build/cache/hashserv.db --no-progress
+    fi
     du -sh "$cache"/* > "$CI_RESULTS/cache-restored-size.txt"
+}
+
+verify_swu() {
+    local swus swu swu_abs tmp
+    shopt -s nullglob
+    swus=(build/tmp/deploy/images/*/*.swu)
+    shopt -u nullglob
+    if [ "${#swus[@]}" -eq 0 ]; then
+        echo "No .swu produced by $CI_FLAVOR" >&2
+        return 1
+    fi
+    tmp=$(mktemp -d)
+    for swu in "${swus[@]}"; do
+        # Skip the non-timestamped symlink so each package is checked once.
+        [ -L "$swu" ] && continue
+        echo "== Checking $swu =="
+        swu_abs=$(realpath "$swu")
+        (cd "$tmp" && cpio -idm --no-absolute-filenames -H crc < "$swu_abs")
+        test -f "$tmp/sw-description.sig"
+        openssl cms -verify -binary -inform DER \
+            -in "$tmp/sw-description.sig" \
+            -content "$tmp/sw-description" \
+            -CAfile keys/swupdate-keys/ca/root-ca.crt \
+            -purpose any -out /dev/null
+        echo "Signature verified"
+        rm -f "$tmp"/*
+    done
+    rm -rf "$tmp"
 }
 
 save_cache() {
@@ -154,6 +187,13 @@ if [ -n "${CI_LOCAL_CACHE_PREFIX:-}" ]; then
 else
     cp seapath.conf.sample seapath.conf
 fi
+case "$CI_FLAVOR" in
+    *_swu)
+        # Throwaway PKI, as in the SFL CI; the runner's OpenSSL 3 passes the script's check.
+        scripts/generate-swupdate-keys.sh -o keys/swupdate-keys
+        printf 'SEAPATH_SWUPDATE_KEYS_DIR="%s"\n' "$PWD/keys/swupdate-keys" >> seapath.conf
+        ;;
+esac
 cp seapath.conf "$CI_RESULTS/seapath.conf.txt"
 
 for flavor in "${flavors[@]}"; do
@@ -165,6 +205,9 @@ for flavor in "${flavors[@]}"; do
     timed "$flavor-reference" /usr/bin/time -v -o "$CI_RESULTS/$flavor-reference-resources.txt" cqfd -b "$flavor"
     awk '/Sstate summary:|Tasks Summary:/' "$CI_RESULTS/$flavor-reference.log" \
         > "$CI_RESULTS/$flavor-reference-cache-summary.txt"
+    case "$flavor" in
+        *_swu) timed "$flavor-verify-swu" verify_swu ;;
+    esac
     # Record image sizes and digests without uploading large firmware images.
     find build/tmp/deploy/images -type f \
         \( -name '*.qcow2' -o -name '*.wic*' -o -name '*.spdx.json' \) \

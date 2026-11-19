@@ -10,6 +10,14 @@ on:
         description: Verified local cache with pinned sources, for the reference build
         type: string
         default: ''
+      manifest_ref:
+        description: repo-manifest ref to sync (empty uses the script default)
+        type: string
+        default: ''
+      manifest_file:
+        description: Manifest file in that ref (empty uses the script default)
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -26,6 +34,8 @@ jobs:
       CI_FLAVOR: ${{ inputs.flavor }}
       CI_CACHE_BUCKET: ${{ vars.YOCTO_EC2_CACHE_BUCKET }}
       CI_LOCAL_CACHE_PREFIX: ${{ inputs.cache_prefix }}
+      CI_MANIFEST_REF: ${{ inputs.manifest_ref || 'refs/tags/yocto-ec2-2026-10-19-v2' }}
+      CI_MANIFEST_FILE: ${{ inputs.manifest_file || 'wrynose-ec2.xml' }}
       CI_ORIGIN_URL: ${{ github.server_url }}/${{ github.repository }}
       CI_ORIGIN_SHA: ${{ github.sha }}
       CI_RESULTS: ${{ github.workspace }}/ec2-results

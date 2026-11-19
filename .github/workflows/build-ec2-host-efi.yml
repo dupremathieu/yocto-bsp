@@ -2,8 +2,21 @@ name: Yocto EC2 — host_efi
 on:
   workflow_dispatch:
     inputs:
+      flavor:
+        description: Host image flavor
+        type: choice
+        options: [host_efi, host_efi_swu]
+        default: host_efi
       cache_prefix:
         description: Verified local cache prefix (empty uses the usual AWS cache)
+        type: string
+        default: ''
+      manifest_ref:
+        description: repo-manifest ref (empty uses the evaluation tag)
+        type: string
+        default: ''
+      manifest_file:
+        description: Manifest file (empty uses wrynose-ec2.xml)
         type: string
         default: ''
 permissions:
@@ -12,5 +25,7 @@ jobs:
   build:
     uses: ./.github/workflows/_build-ec2.yml
     with:
-      flavor: host_efi
+      flavor: ${{ inputs.flavor }}
       cache_prefix: ${{ inputs.cache_prefix || vars.YOCTO_EC2_LOCAL_CACHE_PREFIX || '' }}
+      manifest_ref: ${{ inputs.manifest_ref }}
+      manifest_file: ${{ inputs.manifest_file }}
